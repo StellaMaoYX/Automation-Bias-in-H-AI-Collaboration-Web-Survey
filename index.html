@@ -382,19 +382,21 @@
   
   <!-- Human-first Task Info Page 1 -->
   <div id="taskInfo1" class="hidden">
-    <h2>Task Info</h2>
+    <h2>Task Information</h2>
     <div id="taskInfo1Desc" style="margin-bottom:16px;">
       <p>
-        In the next part, you will inspect X-ray images of luggage on a canvas. You can zoom, drag to pan,
+        In the following tasks, you will inspect X-ray images of luggage on a canvas. You can zoom, drag to pan,
         and use the pen/eraser to mark areas while you decide whether a dangerous item is present.
         <br><br>
-        After you finish your inspection, click "Next" to proceed to the next image.
+        After you finish your inspection and fill in your decision, click "Next" to proceed to the next image.
         <br><br>
         The following two pages demonstrate the tools you can use during the task.
+        <br><br>
+        <span style="color:#b91c1c;">
+          Please carefully read the two sections below and test each button function. You are also encouraged to use these functions as much as possible in the following experiments.
+        </span>
       </p>
-      <p style="margin-top:10px;">
-        <!-- Leave space for your description -->
-      </p>
+      
     </div>
 
     <div style="display:flex; gap:20px;">
@@ -414,13 +416,37 @@
       </div>
     </div>
 
+    <div style="margin:12px 0 18px;">
+      <p><strong>Select whether a dangerous item is present or not.</strong></p>
+      <label><input type="radio" name="dangerInfo1" value="yes"> Dangerous</label><br>
+      <label><input type="radio" name="dangerInfo1" value="no"> Safe</label>
+
+      <div style="margin-top:10px;">
+        <label for="confidenceInfo1">How confident are you that your final answer is correct?</label>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+          <input
+            type="number"
+            id="confidenceNumberInfo1"
+            name="confidenceNumberInfo1"
+            min="0"
+            max="100"
+            step="1"
+            value="50"
+            style="width:72px;"
+          />
+          <input type="range" id="confidenceInfo1" name="confidenceInfo1" min="0" max="100" value="50" style="flex:1;">
+          <span id="confidenceValueInfo1">50%</span>
+        </div>
+      </div>
+    </div>
+
     <br>
     <button id="nextTaskInfo1Btn">Next</button>
   </div>
 
   <!-- Human-first Task Info Page 2 -->
   <div id="taskInfo2" class="hidden">
-    <h2>Info</h2>
+    <h2>Task Information</h2>
     <div id="taskInfo2Desc" style="margin-bottom:16px;">
       <p>
         After you enter your initial decision, you will have access to an AI suggestion. Press and hold the button to reveal the AI
@@ -451,6 +477,30 @@
       <div style="border:2px dashed #aaa; padding:10px;">
         <canvas id="taskCanvasInfo2" width="500" height="500"
                 style="border:1px solid #ccc; cursor:crosshair;"></canvas>
+      </div>
+    </div>
+
+    <div style="margin:12px 0 18px;">
+      <p><strong>Select whether a dangerous item is present or not.</strong></p>
+      <label><input type="radio" name="dangerInfo2" value="yes"> Dangerous</label><br>
+      <label><input type="radio" name="dangerInfo2" value="no"> Safe</label>
+
+      <div style="margin-top:10px;">
+        <label for="confidenceInfo2">How confident are you that your final answer is correct?</label>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+          <input
+            type="number"
+            id="confidenceNumberInfo2"
+            name="confidenceNumberInfo2"
+            min="0"
+            max="100"
+            step="1"
+            value="50"
+            style="width:72px;"
+          />
+          <input type="range" id="confidenceInfo2" name="confidenceInfo2" min="0" max="100" value="50" style="flex:1;">
+          <span id="confidenceValueInfo2">50%</span>
+        </div>
       </div>
     </div>
 
@@ -491,13 +541,64 @@
     <br>
 
     <div>
-      <p><strong id="dangerPrompt">Select whether this language is dangerous or not.</strong></p>
+      <p><strong id="dangerPrompt">Select whether a dangerous item is present or not.</strong></p>
       <label><input type="radio" name="danger" value="yes"> Dangerous</label><br>
       <label><input type="radio" name="danger" value="no"> Safe</label>
     </div>
 
+    <div>
+      <br><br>
+      <label for="confidence">How confident are you that your final answer is correct?</label>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+        <input
+          type="number"
+          id="confidenceNumber"
+          name="confidenceNumber"
+          min="0"
+          max="100"
+          step="1"
+          value="50"
+          style="width:72px;"
+        />
+        <input type="range" id="confidence" name="confidence" min="0" max="100" value="50" style="flex:1;">
+        <span id="confidenceValue">50%</span>
+      </div>
+    </div>
+
     <br>
     <button id="nextTaskBtn" disabled>Next</button>
+  </div>
+
+  <!-- Post-task Questions -->
+  <div id="postTask" class="hidden">
+    <h2>Post-task Questions</h2>
+
+    <div style="margin-bottom:14px;">
+      <label for="postQ1">
+        <strong>1.</strong> In your own words, can you describe how you approached the task when making your final decision?
+        <em>(For example, what information you relied on, what you chose to check or not check, and why.)</em>
+        <span style="color:#b91c1c;">*</span>
+      </label>
+      <br />
+      <textarea id="postQ1" rows="5" style="width:100%; margin-top:6px;"></textarea>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label for="postQ2">
+        <strong>2.</strong> What factors most influenced how confident or uncertain you felt about your final answers during the task?
+        <span style="color:#b91c1c;">*</span>
+      </label>
+      <br />
+      <textarea id="postQ2" rows="4" style="width:100%; margin-top:6px;"></textarea>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <label for="postQ3"><strong>3.</strong> Any other comments?</label>
+      <br />
+      <textarea id="postQ3" rows="3" style="width:100%; margin-top:6px;"></textarea>
+    </div>
+
+    <button id="submitPostTaskBtn" disabled>Submit</button>
   </div>
 
   

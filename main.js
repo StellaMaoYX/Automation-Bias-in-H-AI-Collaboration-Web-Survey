@@ -47,7 +47,16 @@ const surveyDiv = document.getElementById("survey");
 const taskInfo1Div = document.getElementById("taskInfo1");
 const taskInfo2Div = document.getElementById("taskInfo2");
 const taskDiv = document.getElementById("task");
+const postTaskDiv = document.getElementById("postTask");
 const thankyouDiv = document.getElementById("thankyou");
+
+function scrollPageTop({ smooth = true } = {}) {
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: smooth ? "smooth" : "auto" });
+  } catch {
+    window.scrollTo(0, 0);
+  }
+}
 
 // ===============================
 // Task canvases: drag/draw/erase + logging
@@ -779,9 +788,143 @@ const trialIndexEl = document.getElementById("trialIndex");
 const trialTotalEl = document.getElementById("trialTotal");
 const nextTaskBtn = document.getElementById("nextTaskBtn");
 const dangerPromptEl = document.getElementById("dangerPrompt");
+const confidenceRangeEl = document.getElementById("confidence");
+const confidenceNumberEl = document.getElementById("confidenceNumber");
+const confidenceValueEl = document.getElementById("confidenceValue");
+
+let confidencePercentThisTrial = 50;
+let confidenceChangedThisTrial = false;
+
+function clampConfidencePercent(value) {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return 50;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function setConfidencePercent(value, { userInitiated = false } = {}) {
+  const v = clampConfidencePercent(value);
+  if (userInitiated && v !== confidencePercentThisTrial) confidenceChangedThisTrial = true;
+  confidencePercentThisTrial = v;
+  if (confidenceRangeEl) confidenceRangeEl.value = String(v);
+  if (confidenceNumberEl) confidenceNumberEl.value = String(v);
+  if (confidenceValueEl) confidenceValueEl.textContent = `${v}%`;
+}
+
+function getConfidencePercent() {
+  return confidencePercentThisTrial;
+}
+
+confidenceRangeEl?.addEventListener("input", (e) => {
+  setConfidencePercent(e.target?.value, { userInitiated: true });
+  updateNextEnabled();
+});
+confidenceNumberEl?.addEventListener("input", (e) => {
+  // Allow temporarily empty while typing; clamp on blur.
+  const raw = e.target?.value;
+  if (raw === "") {
+    if (confidenceValueEl) confidenceValueEl.textContent = "";
+    return;
+  }
+  setConfidencePercent(raw, { userInitiated: true });
+  updateNextEnabled();
+});
+confidenceNumberEl?.addEventListener("blur", () => {
+  setConfidencePercent(confidenceNumberEl?.value, { userInitiated: true });
+  updateNextEnabled();
+});
 
 const nextTaskInfo1Btn = document.getElementById("nextTaskInfo1Btn");
 const startTaskLoopBtn = document.getElementById("startTaskLoopBtn");
+const submitPostTaskBtn = document.getElementById("submitPostTaskBtn");
+const postQ1El = document.getElementById("postQ1");
+const postQ2El = document.getElementById("postQ2");
+const postQ3El = document.getElementById("postQ3");
+
+function getTrimmedValue(el) {
+  return (el?.value ?? "").trim();
+}
+
+function updatePostTaskEnabled() {
+  if (!submitPostTaskBtn) return;
+  const q1 = getTrimmedValue(postQ1El);
+  const q2 = getTrimmedValue(postQ2El);
+  submitPostTaskBtn.disabled = !(q1 && q2);
+}
+
+postQ1El?.addEventListener("input", updatePostTaskEnabled);
+postQ2El?.addEventListener("input", updatePostTaskEnabled);
+
+function getCheckedRadioValue(name) {
+  if (!name) return null;
+  return document.querySelector(`input[name="${name}"]:checked`)?.value ?? null;
+}
+
+function clearRadioGroup(name) {
+  if (!name) return;
+  const checked = document.querySelector(`input[name="${name}"]:checked`);
+  if (checked) checked.checked = false;
+}
+
+function createConfidenceWidget({ rangeEl, numberEl, valueEl, initialValue = 50 }) {
+  let value = clampConfidencePercent(initialValue);
+
+  function render() {
+    if (rangeEl) rangeEl.value = String(value);
+    if (numberEl) numberEl.value = String(value);
+    if (valueEl) valueEl.textContent = `${value}%`;
+  }
+
+  function set(next) {
+    value = clampConfidencePercent(next);
+    render();
+  }
+
+  function get() {
+    return value;
+  }
+
+  rangeEl?.addEventListener("input", (e) => {
+    set(e.target?.value);
+  });
+  numberEl?.addEventListener("input", (e) => {
+    const raw = e.target?.value;
+    if (raw === "") {
+      if (valueEl) valueEl.textContent = "";
+      return;
+    }
+    set(raw);
+  });
+  numberEl?.addEventListener("blur", () => {
+    set(numberEl?.value);
+  });
+
+  render();
+  return { set, get };
+}
+
+const info1ConfidenceWidget = createConfidenceWidget({
+  rangeEl: document.getElementById("confidenceInfo1"),
+  numberEl: document.getElementById("confidenceNumberInfo1"),
+  valueEl: document.getElementById("confidenceValueInfo1"),
+  initialValue: 50
+});
+
+const info2ConfidenceWidget = createConfidenceWidget({
+  rangeEl: document.getElementById("confidenceInfo2"),
+  numberEl: document.getElementById("confidenceNumberInfo2"),
+  valueEl: document.getElementById("confidenceValueInfo2"),
+  initialValue: 50
+});
+
+function resetInfo1Questions() {
+  clearRadioGroup("dangerInfo1");
+  info1ConfidenceWidget?.set?.(50);
+}
+
+function resetInfo2Questions() {
+  clearRadioGroup("dangerInfo2");
+  info2ConfidenceWidget?.set?.(50);
+}
 
 const info1Controller = createTaskCanvasController({
   canvas: document.getElementById("taskCanvasInfo1"),
@@ -915,7 +1058,9 @@ nextBtnD.addEventListener("click", async () => {
   taskInfo1Div.classList.remove("hidden");
   taskInfo2Div.classList.add("hidden");
   taskDiv.classList.add("hidden");
+  scrollPageTop();
 
+  resetInfo1Questions();
   info1Controller.mount();
   await info1Controller.startTrial({
     trialId: "info_1",
@@ -934,6 +1079,18 @@ async function persistInfoTrial({ participantId, pageId, controller }) {
       doc(db, "responses", participantId, "infoTrials", pageId),
       {
         pageId,
+        answer:
+          pageId === "info_1"
+            ? {
+                dangerousItem: getCheckedRadioValue("dangerInfo1"),
+                confidencePercent: info1ConfidenceWidget?.get?.() ?? null
+              }
+            : pageId === "info_2"
+              ? {
+                  dangerousItem: getCheckedRadioValue("dangerInfo2"),
+                  confidencePercent: info2ConfidenceWidget?.get?.() ?? null
+                }
+              : null,
         durationMs: interaction?.durationMs ?? null,
         toolModeMs: interaction?.toolModeMs ?? null,
         actionMs: interaction?.actionMs ?? null,
@@ -956,6 +1113,8 @@ nextTaskInfo1Btn?.addEventListener("click", async () => {
   taskInfo1Div.classList.add("hidden");
 
   taskInfo2Div.classList.remove("hidden");
+  scrollPageTop();
+  resetInfo2Questions();
   info2Controller.mount();
   await info2Controller.startTrial({
     trialId: "info_2",
@@ -972,8 +1131,47 @@ startTaskLoopBtn?.addEventListener("click", async () => {
   taskInfo2Div.classList.add("hidden");
 
   taskDiv.classList.remove("hidden");
+  scrollPageTop();
   taskController.mount();
   await startTaskLoop();
+});
+
+submitPostTaskBtn?.addEventListener("click", async () => {
+  const participantId = taskLoopState?.participantId || getParticipantId();
+  const q1 = getTrimmedValue(postQ1El);
+  const q2 = getTrimmedValue(postQ2El);
+  const q3 = getTrimmedValue(postQ3El);
+
+  if (!q1 || !q2) {
+    alert("Please answer the required questions before submitting.");
+    updatePostTaskEnabled();
+    return;
+  }
+
+  submitPostTaskBtn.disabled = true;
+  try {
+    await setDoc(
+      doc(db, "responses", participantId),
+      {
+        postTask: {
+          q1,
+          q2,
+          q3: q3 || null,
+          submittedAt: serverTimestamp()
+        }
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error("Failed to save post-task responses:", err);
+    alert("Saving failed. Please try again.");
+    submitPostTaskBtn.disabled = false;
+    return;
+  }
+
+  postTaskDiv?.classList.add("hidden");
+  thankyouDiv.classList.remove("hidden");
+  scrollPageTop();
 });
 
 // ===============================
@@ -1010,7 +1208,9 @@ function updateNextEnabled() {
   const hasAnswer = !!getCheckedDanger();
   const needsAi = !!taskLoopState?.currentTrialRequiresAiPress;
   const aiOk = !needsAi || !!taskLoopState?.currentTrialAiPressed;
-  nextTaskBtn.disabled = !(hasAnswer && aiOk);
+  const needsConfidence = !!confidenceRangeEl || !!confidenceNumberEl;
+  const confidenceOk = !needsConfidence || confidenceChangedThisTrial;
+  nextTaskBtn.disabled = !(hasAnswer && aiOk && confidenceOk);
 }
 
 taskDiv?.addEventListener("change", (e) => {
@@ -1032,8 +1232,8 @@ async function showTrial(index) {
   if (aiSuggestionBtn) aiSuggestionBtn.style.display = hasSuggestion ? "inline-block" : "none";
   if (dangerPromptEl) {
     dangerPromptEl.textContent = hasSuggestion
-      ? "After view AI's suggestion, do you think there is a dangerous item?"
-      : "Do you think there is a dangerous item?";
+      ? "After viewing the AI's suggestion, select whether a dangerous item is present or not."
+      : "Select whether a dangerous item is present or not.";
   }
 
   if (taskLoopState) {
@@ -1042,13 +1242,15 @@ async function showTrial(index) {
   }
 
   clearDangerSelection();
+  confidenceChangedThisTrial = false;
+  setConfidencePercent(50, { userInitiated: false });
   if (nextTaskBtn) nextTaskBtn.disabled = true;
   setDangerInputsEnabled(!hasSuggestion);
 
   await taskController.startTrial(trial);
 }
 
-async function persistTrial({ participantId, trial, answer }) {
+async function persistTrial({ participantId, trial, answer, confidencePercent }) {
   const interaction = taskController.getTrialData();
   const trialDoc = {
     trialId: trial.trialId,
@@ -1059,7 +1261,7 @@ async function persistTrial({ participantId, trial, answer }) {
     totalTrials: TASK_TRIALS.length,
     baseImage: trial.baseImageSrc,
     suggestionImage: trial.suggestionImageSrc,
-    answer: { dangerousItem: answer },
+    answer: { dangerousItem: answer, confidencePercent },
     answerSelectedAt: taskLoopState?.currentAnswerSelectedAt ?? null,
     responseTimeMs:
       interaction?.trialStartedAt && (taskLoopState?.currentAnswerSelectedAt ?? null)
@@ -1102,6 +1304,7 @@ async function startTaskLoop() {
     startedAt: Date.now(),
     index: 0,
     answers: {},
+    confidences: {},
     currentTrialRequiresAiPress: false,
     currentTrialAiPressed: false,
     currentAnswerSelectedAt: null
@@ -1132,6 +1335,7 @@ nextTaskBtn?.addEventListener("click", async () => {
   if (!answer) return;
   if (taskLoopState.currentTrialRequiresAiPress && !taskLoopState.currentTrialAiPressed) return;
 
+  const confidencePercent = getConfidencePercent();
   const idx = taskLoopState.index;
   const trial = TASK_TRIALS[idx];
   if (!trial) return;
@@ -1139,8 +1343,9 @@ nextTaskBtn?.addEventListener("click", async () => {
   nextTaskBtn.disabled = true;
 
   try {
-    await persistTrial({ participantId: taskLoopState.participantId, trial, answer });
+    await persistTrial({ participantId: taskLoopState.participantId, trial, answer, confidencePercent });
     taskLoopState.answers[trial.trialId] = answer;
+    taskLoopState.confidences[trial.trialId] = confidencePercent;
   } catch (err) {
     console.error("Failed to save trial:", err);
     alert("Saving failed. Please try again.");
@@ -1151,6 +1356,7 @@ nextTaskBtn?.addEventListener("click", async () => {
   taskLoopState.index += 1;
   if (taskLoopState.index < TASK_TRIALS.length) {
     await showTrial(taskLoopState.index);
+    scrollPageTop();
     return;
   }
 
@@ -1166,6 +1372,7 @@ nextTaskBtn?.addEventListener("click", async () => {
           completedAtClient,
           totalDurationMs: Math.max(0, completedAtClient - taskLoopState.startedAt),
           answers: taskLoopState.answers,
+          confidences: taskLoopState.confidences,
           completedTrialsCount: TASK_TRIALS.length
         },
         taskSubmittedAt: serverTimestamp()
@@ -1178,5 +1385,14 @@ nextTaskBtn?.addEventListener("click", async () => {
 
   taskController.unmount();
   taskDiv.classList.add("hidden");
-  thankyouDiv.classList.remove("hidden");
+  if (postTaskDiv) {
+    if (postQ1El) postQ1El.value = "";
+    if (postQ2El) postQ2El.value = "";
+    if (postQ3El) postQ3El.value = "";
+    updatePostTaskEnabled();
+    postTaskDiv.classList.remove("hidden");
+  } else {
+    thankyouDiv.classList.remove("hidden");
+  }
+  scrollPageTop();
 });
